@@ -24,8 +24,7 @@ import sys
 import re
 import time  # output some timings per evaluation
 from collections import defaultdict
-from typing import Callable
-import os, webbrowser  # to show post-processed results in the browser
+from typing import Callable, Any
 import numpy as np  # for median, zeros, random, asarray
 
 from cocoex import Suite, Observer, Problem
@@ -43,6 +42,8 @@ class CMADataStore(object):
     Attributes:
         timings -> defaultdictionary containing a map from the problem dimensions to the list of all the timings of the benchmarking experiment on that dimension
         evolution_strategies -> defaultdictionary containing a map from the problem indexes to the list of all the evolution strategies generated on that problem
+    
+    This class doesn't implement any method, is just a container for data relative to a bechmarking experiment
     """
     def __init__(self) -> None:
         self._timings = defaultdict(list)
@@ -75,6 +76,25 @@ class CMAExperiment(object):
         data_store           -> The data store for saving the results and the evolution strategies
         budget_multiplier    -> The budget multiplier used to compute the experiments budget based on the number of dimensions
         restarts             -> The number of restarts on the current problem
+    
+    This function is supposed to call the underlying cma algorithm, which can be called through the following signature:
+    
+    from cma import fmin2 as fmin2
+    fmin2(objective_function, x0, sigma0,
+         options=None,
+         args=(),
+         gradf=None,
+         restarts=0,
+         restart_from_best='False',
+         incpopsize=2,
+         eval_initial_x=False,
+         parallel_objective=None,
+         noise_handler=None,
+         noise_change_sigma_exponent=1,
+         noise_kappa_exponent=0,
+         bipop=False,
+         callback=None):
+
     """
     def __init__(
             self, 
@@ -84,9 +104,11 @@ class CMAExperiment(object):
             observer: Observer, 
             printer: utilities.MiniPrint, 
             data_store: CMADataStore, 
+            cma_options: cma.CMAOptions,
             budget_multiplier: int,
-            sigma0: float = 1.,
-            verbose: int = 0
+            sigma0: float,
+            verbose: int, 
+            **cma_kwargs: dict[str, Any]
         ) -> None:
         """
         Initializes all the class attributes and observes the problem
@@ -101,6 +123,8 @@ class CMAExperiment(object):
         self._sigma0 = sigma0
         self._restarts = -1
         self._verbose = verbose
+        self._cma_options = cma_options
+        self._cma_kwargs = cma_kwargs
         self.__observe_problem()
         self._ran = False
 
@@ -110,27 +134,6 @@ class CMAExperiment(object):
         The starting sigma for the CMA algorithm
         """
         return self._sigma0
-
-    @property
-    def dimension(self) -> int:
-        """
-        The number of dimensions of the problem
-        """
-        return self.problem.dimension
-
-    @property
-    def final_target_hit(self) -> bool:
-        """
-        Whether the final target value has been hit
-        """
-        return self.problem.final_target_hit
-
-    @property
-    def initial_solution(self) -> np.ndarray:
-        """
-        The initial solution which to start the optimization routine from
-        """
-        return self.problem.initial_solution_proposal
 
     @property
     def restarts(self) -> int:
@@ -144,15 +147,8 @@ class CMAExperiment(object):
         """
         The remaining budget to the solver
         """
-        return int(self.dimension * self.budget_multiplier + 1 -
-                max((self.evaluations, self.problem.evaluations_constraints)))
-
-    @property
-    def evaluations(self) -> int:
-        """
-        The number of objective function evaluations
-        """
-        return self.problem.evaluations
+        return int(self.problem.dimension * self.budget_multiplier + 1 -
+                max((self.problem.evaluations, self.problem.evaluations_constraints)))
 
     @property
     def idx(self) -> int:
@@ -176,13 +172,48 @@ class CMAExperiment(object):
         return self._ran
 
     @property
-    def evolution_strategy(self) -> list[cma.CMAEvolutionStrategy]| cma.CMAEvolutionStrategy:
+    def evolution_strategy(self) -> list[cma.CMAEvolutionStrategy] | cma.CMAEvolutionStrategy:
         """
         Returns the evolution strategies generated in the experiment
         """
+        # there is no evolution strategy if we don't run the algorithm
         assert(self.ran), "You need to run the experiment before accessing the evolution strategy associated with it"
-        return self.data_store._evolution_strategies[self.idx] if len(self.data_store._evolution_strategies[self.idx]) > 1 else \
-            self.data_store._evolution_strategies[self.idx][0]
+        try:
+            assert(isinstance(self.data_store._evolution_strategies[self.idx], list)), "self.data._store_evolution_strategies expected to be a list"
+        except AssertionError as _error:
+            raise TypeError(_error)
+        evolution_strategies = self.data_store.evolution_strategies[self.idx]
+        # a bit of sanity check
+        for evolution_strategy in evolution_strategies:
+            try:
+                assert(isinstance(evolution_strategy, cma.CMAEvolutionStrategy)), f"self.data._store_evolution_strategies expected to be a cma.CMAEvolutionStrategy object (given type: {type(evolution_strategy)})"
+            except AssertionError as _error:
+                raise TypeError(_error)
+        return evolution_strategies[0] if len(evolution_strategies) == 1 else evolution_strategies
+
+    @property
+    def cma_options(self):
+        """
+        Returns the option argument with which to call the cma algorithm
+        """
+        try:
+            assert(isinstance(self._cma_options, cma.CMAOptions)), "self.cma_option is supposed to be a cma.CMAOptions object"
+        except AssertionError as _error:
+            raise TypeError(_error)
+        return self._cma_options
+
+    @property
+    def cma_kwargs(self):
+        """
+        Returns the option argument with which to call the cma algorithm
+        """
+        try:
+            assert(isinstance(self._cma_kwargs, dict)), "self.cma_option is supposed to be a dictionary object"
+        except AssertionError as _error:
+            raise TypeError(_error)
+        if not len(self._cma_kwargs):
+            UserWarning("W: Passing an empty dictionary of keyword arguments to the cma optimizer. Running the cma algorithm with the default settings")
+        return self._cma_kwargs
 
     def free(self) -> None:
         """
@@ -203,14 +234,14 @@ class CMAExperiment(object):
         self._ran = True
         time1 = time.time()
 
-        self.problem(np.zeros(self.dimension))  # making algorithms more comparable
-        while self.evalsleft > 0 and not self.final_target_hit:
+        self.problem(np.zeros(self.problem.dimension))  # making algorithms more comparable
+        while self.evalsleft > 0 and not self.problem.final_target_hit:
             self._restarts += 1
-            xopt, es = self.solver(self.problem, self.initial_solution, self.sigma0, {'maxfevals': self.evalsleft, 'verbose':-9}, restarts = 9)
+            xopt, es = self.solver(self.problem, self.problem.initial_solution_proposal, self.sigma0, self.cma_options, **self.cma_kwargs)
             self.data_store.evolution_strategies[self.idx].append(es)
 
-        self.data_store.timings[self.dimension].append((time.time() - time1) / self.evaluations
-            if self.evaluations else 0)
+        self.data_store._timings[self.problem.dimension].append((time.time() - time1) / self.problem.evaluations
+            if self.problem.evaluations else 0)
         if self.verbose:
             self.printer(self.problem, restarted = self._restarts, final=self.idx == len(self.suite) - 1)
 
@@ -234,9 +265,11 @@ class CMABenchmark(object):
             observer: Observer, 
             printer: utilities.MiniPrint, 
             data_store: CMADataStore, 
+            cma_options: cma.CMAOptions,
             budget_multiplier: int,
-            verbose: int = 0,
-            run: bool = False
+            sigma0: float,
+            verbose: int,
+            **cma_kwargs: dict[str, Any]
         ) -> None:
         """
         Initializes classes attributes
@@ -248,7 +281,9 @@ class CMABenchmark(object):
         self.data_store = data_store
         self.budget_multiplier = budget_multiplier
         self.verbose = verbose
-        self._run = run
+        self._cma_options = cma_options
+        self._sigma0 = sigma0
+        self._cma_kwargs = cma_kwargs
 
     @staticmethod
     def __set_num_threads(
@@ -270,6 +305,37 @@ class CMABenchmark(object):
             os.environ[name] = nt
         disp and print("setting mkl threads num to", nt)
 
+    @property
+    def cma_options(self):
+        """
+        Returns the option argument with which to call the cma algorithm
+        """
+        try:
+            assert(isinstance(self._cma_options, cma.CMAOptions)), "self.cma_option is supposed to be a cma.CMAOptions object"
+        except AssertionError as _error:
+            raise TypeError(_error)
+        return self._cma_options
+
+    @property
+    def cma_kwargs(self):
+        """
+        Returns the option argument with which to call the cma algorithm
+        """
+        try:
+            assert(isinstance(self._cma_kwargs, dict)), "self.cma_option is supposed to be a dictionary object"
+        except AssertionError as _error:
+            raise TypeError(_error)
+        if not len(self._cma_kwargs):
+            UserWarning("W: Passing an empty dictionary of keyword arguments to the cma optimizer. Running the cma algorithm with the default settings")
+        return self._cma_kwargs
+
+    @property
+    def sigma0(self) -> float:
+        """
+        The starting sigma for the CMA algorithm
+        """
+        return self._sigma0
+
     def __len__(self) -> None:
         """
         Returns the number of problems in the suite to be benchmarked
@@ -284,45 +350,37 @@ class CMABenchmark(object):
         Gets the idx-th problem in the suite and initializes a `CMAExperiment` object oer it
         """
         problem = self.suite[idx]
-        return CMAExperiment(self.solver, self.suite, problem, self.observer, self.printer, self.data_store, self.budget_multiplier, verbose = self.verbose)
-
-    def run(self, **kwargs) -> None:
-        """
-        Iterates over the suite, initializing and calling a `CMAExperiment` object at each iteration
-        """
-        self.__set_num_threads(**kwargs)
-        for idx in range(self.__len__()):
-            experiment = self.__getitem__(idx)
-            experiment()
-            experiment.free()
-    
-    def __call__(self, **kwargs) -> None:
-        """
-        Iterates over the suite, initializing and calling a `CMAExperiment` object at each iteration
-        """
-        self._run(**kwargs)
+        return CMAExperiment(
+            self.solver, 
+            self.suite, 
+            problem, 
+            self.observer, 
+            self.printer, 
+            self.data_store, 
+            self.cma_options, 
+            self.budget_multiplier, 
+            self.sigma0, 
+            self.verbose, 
+            **self.cma_kwargs
+        )
 
     def __init__(
             self,
-            solver: Callable, 
+            solver: Callable,
             suite_name: str = "bbob-noisy",
             suite_year_option: str = "",
             suite_filter_option: str = "", 
             output_folder: str = "./",
-            budget_multiplier: int = 2,
-            show_on_browser: bool = False, 
-            run: bool = False
+            budget_multiplier: int = 10,
+            verbose: int = 0,
+            run: bool = False,
+            sigma0: float = 1., 
+            cma_options: cma.CMAOptions = cma.CMAOptions(), # default options
+            **cma_kwargs: dict[str, Any]
         ) -> None:
         suite = Suite(suite_name, suite_year_option, suite_filter_option)
         observer = Observer(suite_name, "result_folder: " + output_folder)
         printer = utilities.MiniPrint()
         data_store = CMADataStore()
-        self._init(solver, suite, observer, printer, data_store, budget_multiplier)
-        if self._run:
-            self.run()
-            if show_on_browser:
-                cocopp.main(observer.result_folder) 
-                webbrowser.open("file://" + os.getcwd() + "/ppdata/index.html") 
-        
-    
+        self._init(solver, suite, observer, printer, data_store, cma_options, budget_multiplier, sigma0, verbose, **cma_kwargs)
     
