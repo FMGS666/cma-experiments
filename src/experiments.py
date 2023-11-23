@@ -18,7 +18,6 @@ This file contains the definition of four classes:
     The logging facilities for a benchmarking experiment
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
 from cocoex import solvers, utilities
 import sys
 import re

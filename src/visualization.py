@@ -6,8 +6,6 @@ A simple script containing some simple utility functions for plotting runs of th
 
 """
 
-from __future__ import absolute_import
-
 import itertools
 import cma
 
