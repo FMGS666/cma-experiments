@@ -1,3 +1,5 @@
+import mkl
+
 from .cma_experiment import * 
 
 class CMABenchmark:
@@ -40,10 +42,7 @@ class CMABenchmark:
             nt: int = 1, 
             disp: int = 1
         ) -> None:
-        try: import mkl
-        except ImportError: disp and print("mkl is not installed")
-        else:
-            mkl.set_num_threads(nt)
+        mkl.set_num_threads(nt)
         nt = str(nt)
         for name in ['OPENBLAS_NUM_THREADS',
                     'NUMEXPR_NUM_THREADS',

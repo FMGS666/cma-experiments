@@ -21,8 +21,12 @@ if __name__ == "__main__":
     )
 
     for budget_multiplier in budget_multipliers:
-        output_folder = os.path.join(arguments.output_folder, f"#{budget_multiplier}")
+        output_folder = '%s_%dx_on_%s' % (
+            solver.__name__, int(budget_multiplier), arguments.suite_name)
+        output_folder = os.path.join(arguments.output_folder, output_folder)
+        dumps_folder = os.path.join(output_folder, "dumps")
         os.mkdir(output_folder)
+        os.mkdir(dumps_folder)
         benchmark = CMABenchmark(
             solver,
             budget_multiplier,
@@ -35,8 +39,15 @@ if __name__ == "__main__":
             cma_options = cma_options,
             **cma_kwargs
         )
-        for experiment in benchmark:
+        benchmark.set_num_threads(
+            nt = arguments.number_of_threads,
+            disp = arguments.disp
+        )
+        n_problems = len(benchmark)
+        for idx in range(n_problems):
+            experiment = benchmark[idx]
             experiment.run()
-
-
-
+            experiment.save_history(dumps_folder)
+            experiment.free()
+        if arguments.post_processing:
+            cocopp.main(benchmark.observer.result_folder)

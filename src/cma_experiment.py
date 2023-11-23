@@ -1,14 +1,13 @@
-from cocoex import solvers, utilities
+import os
 import time
-from collections import defaultdict
-from typing import Callable, Any
+import pickle
+import cma
+import cocopp
 import numpy as np
 
-from cocoex import Suite, Observer, Problem
-
-import cma
-import pickle
-import cocopp
+from typing import Callable, Any
+from pathlib import Path
+from cocoex import Suite, Observer, Problem, solvers, utilities
 
 class CMAExperiment:
     def __init__(
@@ -29,13 +28,14 @@ class CMAExperiment:
         self.problem = problem
         self.observer = observer
         self.printer = printer 
-        self.timings = defaultdict(list)
-        self.evolution_strategies = defaultdict(list)
+        self.timings = []
+        self.evolution_strategies = []
         self.budget_multiplier = budget_multiplier
         self.sigma0 = sigma0
         self.restarts = -1
         self.verbose = verbose
         self.cma_options = cma_options
+        self.cma_options["verbose"] = self.verbose
         self.cma_kwargs = cma_kwargs
         self.problem.observe_with(self.observer)
         self.ran = False
@@ -49,17 +49,6 @@ class CMAExperiment:
     def idx(self) -> int:
         return self.problem.index
 
-    @property
-    def evolution_strategy(self) -> list[cma.CMAEvolutionStrategy] | cma.CMAEvolutionStrategy:
-        assert(self.ran), "You need to run the experiment before accessing the evolution strategy associated with it"
-        if not isinstance(self.evolution_strategies[self.idx], list):
-            raise TypeError("self.data._store_evolution_strategies expected to be a list")
-        evolution_strategies = self.evolution_strategies[self.idx]
-        for evolution_strategy in evolution_strategies:
-            if not isinstance(evolution_strategy, cma.CMAEvolutionStrategy):
-                raise TypeError( f"self.data._store_evolution_strategies expected to be a cma.CMAEvolutionStrategy object (given type: {type(evolution_strategy)})")
-        return evolution_strategies[0] if len(evolution_strategies) == 1 else evolution_strategies
-
     def free(self) -> None:
         self.problem.free()
 
@@ -68,7 +57,8 @@ class CMAExperiment:
         time1 = time.time()
         self.problem(np.zeros(self.problem.dimension))
         while self.evalsleft > 0 and not self.problem.final_target_hit:
-            self._restarts += 1
+            self.restarts += 1
+            self.cma_options["maxfevals"] = self.evalsleft
             xopt, es = self.solver(
                 self.problem, 
                 self.problem.initial_solution_proposal, 
@@ -76,8 +66,10 @@ class CMAExperiment:
                 self.cma_options, 
                 **self.cma_kwargs
             )
-            self.evolution_strategies[self.idx].append(es)
-        self.timings[self.problem.dimension].append((time.time() - time1) / self.problem.evaluations
+            result = es.result._asdict()
+            result["stop"] = dict(result["stop"])
+            self.evolution_strategies.append(result)
+        self.timings.append((time.time() - time1) / self.problem.evaluations
             if self.problem.evaluations else 0)
         if self.verbose:
             self.printer(
@@ -85,3 +77,15 @@ class CMAExperiment:
                 restarted = self.restarts, 
                 final = self.idx == len(self.suite) - 1
             )
+    
+    def save_history(
+            self,
+            dumps_folder: str | Path
+        ) -> None:
+        dump_file = os.path.join(dumps_folder, f"{self.problem.id}.pkl")
+        history = {
+            "timings": self.timings,
+            "evolution_strategies": self.evolution_strategies
+        }
+        with open(dump_file, "wb") as _dump_buffer:
+            pickle.dump(history, _dump_buffer)

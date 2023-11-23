@@ -75,3 +75,25 @@ class CMAArgParser(ArgumentParser):
             required = False,
             default = "./cma-experiments/settings.yaml"  
         )
+        self.add_argument(
+            '-pp', 
+            '--post-processing',
+            help = "Whether to perform post-processing after the experiments are run",
+            action = "store_true"
+        )
+        self.add_argument(
+            '-nt', 
+            '--number-of-threads',
+            help = "The number of threads",
+            type = int,
+            required = False,
+            default = 50  
+        )
+        self.add_argument(
+            '-d', 
+            '--disp',
+            help = "IDK",
+            type = int,
+            required = False,
+            default = 0 
+        )
