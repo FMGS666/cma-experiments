@@ -8,10 +8,10 @@ def read_cma_settings_from_yaml(
     ) -> tuple[CMAOptions, dict]:
     with open(yaml_file, 'r') as _option_file:
         cma_settings = yaml.safe_load(_option_file)
-    budget_multipliers = cma_settings["budget_multipliers"]
+    budget_multiplier = cma_settings["budget_multipliers"]
     options = cma_settings["options"]
     cma_kwargs = cma_settings["kwargs"] if cma_settings["kwargs"] else dict()
     cma_options = CMAOptions(
         s = options
     )
-    return budget_multipliers, cma_options, cma_kwargs
+    return budget_multiplier, cma_options, cma_kwargs

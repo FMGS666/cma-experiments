@@ -1,5 +1,5 @@
-budget_multipliers: [
-  2, 5, 10, 20, 50, 100, 200, 500, 1000
-]
+budget_multipliers: 10000
 options:
-kwargs: 
+  popsize_factor: 2
+kwargs:
+  restarts: 9

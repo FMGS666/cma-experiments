@@ -54,18 +54,12 @@ class CMAArgParser(ArgumentParser):
             default = "./results/"   
         )
         self.add_argument(
-            '-v', 
-            '--verbose',
-            help = "Whether to run verbose experiments or not",
-            action = "store_true"
-        )
-        self.add_argument(
             '-S', 
             '--sigma0',
             help = "The sigma0 parameter of the CMA-ES algorithm",
             type = float,
             required = False,
-            default = 1.0  
+            default = 2.0  
         )
         self.add_argument(
             '-sf', 
@@ -73,7 +67,7 @@ class CMAArgParser(ArgumentParser):
             help = "The file from whih to read the settings for the CMA-ES algorithm",
             type = str,
             required = False,
-            default = "./cma-experiments/settings.yaml"  
+            default = "./settings.yaml"  
         )
         self.add_argument(
             '-pp', 
@@ -95,5 +89,11 @@ class CMAArgParser(ArgumentParser):
             help = "IDK",
             type = int,
             required = False,
-            default = 0 
+            default = 50 
+        )
+        self.add_argument(
+            '-ns', 
+            '--noisy-settings',
+            help = "whether to use the noisy settings or not",
+            action = "store_true" 
         )
