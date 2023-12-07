@@ -36,7 +36,7 @@ if __name__ == "__main__":
         sigma0 = arguments.sigma0,
         cma_options = cma_options,
         noisy_settings = arguments.noisy_settings,
-        evaluate_origin = arguments.evaluate_origin
+        evaluate_origin = arguments.evaluate_origin,
         **cma_kwargs
     )
     benchmark.set_num_threads(
