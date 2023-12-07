@@ -16,6 +16,7 @@ class CMABenchmark:
             sigma0: float = 2.,
             cma_options: cma.CMAOptions = cma.CMAOptions(),
             noisy_settings: bool = False,
+            evaluate_origin: bool = True,
             **cma_kwargs: dict[str, Any]
         ) -> None:
         self.suite_name = suite_name
@@ -38,6 +39,7 @@ class CMABenchmark:
         self.sigma0 = sigma0
         self.cma_kwargs = cma_kwargs
         self.noisy_settings = noisy_settings
+        self.evaluate_origin = evaluate_origin
 
     @staticmethod
     def set_num_threads(
@@ -77,6 +79,7 @@ class CMABenchmark:
         Gets the idx-th problem in the suite and initializes a `CMAExperiment` object oer it
         """
         problem = self.suite[idx]
+        print(f"Running {problem.id=}")
         extra_options = dict()
         if self.noisy_settings:
             extra_options = self.get_noisy_settings_for_problem_dimension(

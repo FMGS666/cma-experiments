@@ -20,6 +20,7 @@ class CMAExperiment:
             cma_options: cma.CMAOptions,
             budget_multiplier: int,
             sigma0: float,
+            evaluate_origin: bool,
             **cma_kwargs: dict[str, Any]
         ) -> None:
         self.solver = solver
@@ -34,6 +35,7 @@ class CMAExperiment:
         self.restarts = -1
         self.cma_options = cma_options
         self.cma_kwargs = cma_kwargs
+        self.evaluate_origin = evaluate_origin
         self.problem.observe_with(self.observer)
         self.ran = False
 
@@ -52,7 +54,8 @@ class CMAExperiment:
     def run(self) -> None:
         self.ran = True
         time1 = time.time()
-        self.problem(np.zeros(self.problem.dimension))
+        if self.evaluate_origin:
+            self.problem(np.zeros(self.problem.dimension))
         while self.evalsleft > 0 and not self.problem.final_target_hit:
             self.restarts += 1
             options = self.cma_options | {

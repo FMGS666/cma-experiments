@@ -97,3 +97,9 @@ class CMAArgParser(ArgumentParser):
             help = "whether to use the noisy settings or not",
             action = "store_true" 
         )
+        self.add_argument(
+            '-eo', 
+            '--evaluate-origin',
+            help = "whether to evaluate the origin as first solution or not",
+            action = "store_true" 
+        )
