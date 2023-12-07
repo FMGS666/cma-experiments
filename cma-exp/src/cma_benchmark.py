@@ -1,6 +1,8 @@
 import mkl
 
 from .cma_experiment import * 
+from .cma_bbob_noisy_settings import CMANoisySettings, OptionType
+
 
 class CMABenchmark:
     def __init__(
@@ -11,9 +13,9 @@ class CMABenchmark:
             suite_year_option: str = "",
             suite_filter_option: str = "", 
             output_folder: str = "./",
-            verbose: bool = False,
-            sigma0: float = 1., 
+            sigma0: float = 2.,
             cma_options: cma.CMAOptions = cma.CMAOptions(),
+            noisy_settings: bool = False,
             **cma_kwargs: dict[str, Any]
         ) -> None:
         self.suite_name = suite_name
@@ -32,10 +34,10 @@ class CMABenchmark:
         ) 
         self.printer = utilities.MiniPrint()
         self.budget_multiplier = budget_multiplier
-        self.verbose = verbose
         self.cma_options = cma_options
         self.sigma0 = sigma0
         self.cma_kwargs = cma_kwargs
+        self.noisy_settings = noisy_settings
 
     @staticmethod
     def set_num_threads(
@@ -51,6 +53,16 @@ class CMABenchmark:
             os.environ[name] = nt
         disp and print("setting mkl threads num to", nt)
 
+    def get_noisy_settings_for_problem_dimension(
+            self,
+            dimension: int
+        ) -> dict[str, OptionType]:
+        """
+        
+        """
+        noisy_options = CMANoisySettings(dimension)
+        return noisy_options.get_opions_dictionary()
+
     def __len__(self) -> None:
         """
         Returns the number of problems in the suite to be benchmarked
@@ -65,15 +77,20 @@ class CMABenchmark:
         Gets the idx-th problem in the suite and initializes a `CMAExperiment` object oer it
         """
         problem = self.suite[idx]
+        extra_options = dict()
+        if self.noisy_settings:
+            extra_options = self.get_noisy_settings_for_problem_dimension(
+                problem.dimension
+            )
+        options = self.cma_options | extra_options
         return CMAExperiment(
             self.solver, 
             self.suite, 
             problem, 
             self.observer, 
             self.printer, 
-            self.cma_options, 
+            options, 
             self.budget_multiplier, 
             self.sigma0, 
-            self.verbose, 
             **self.cma_kwargs
         )
