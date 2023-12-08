@@ -1,4 +1,4 @@
-budget_multipliers: 10000
+budget_multipliers: 5000
 options:
   popsize_factor: 2
 kwargs:

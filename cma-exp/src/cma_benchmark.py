@@ -94,6 +94,7 @@ class CMABenchmark:
             self.printer, 
             options, 
             self.budget_multiplier, 
-            self.sigma0, 
+            self.sigma0,
+            self.evaluate_origin,
             **self.cma_kwargs
         )

@@ -22,8 +22,8 @@ if __name__ == "__main__":
 
     output_folder = '%s_%dx_on_%s' % (
         solver.__name__, int(budget_multiplier), arguments.suite_name)
-    dumps_folder = os.path.join(arguments.output_folder, output_folder)
-    dumps_folder = os.path.join(dumps_folder, "dumps")
+    output_folder = os.path.join(arguments.output_folder, output_folder)
+    dumps_folder = os.path.join(output_folder, "dumps")
     os.mkdir(output_folder)
     os.mkdir(dumps_folder)
     benchmark = CMABenchmark(
